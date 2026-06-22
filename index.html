@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mapa de Problemas Urbanos — Londrina</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<style>
+  :root {
+    --asfalto: #1c1d1f;
+    --concreto: #f2efe9;
+    --sinalizacao: #e8542c;
+    --aviso: #f0b429;
+    --seguro: #2f7a4f;
+    --linha: #d8d2c4;
+    --texto-claro: #6b6760;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background: var(--concreto);
+    color: var(--asfalto);
+  }
+
+  .app {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    height: 100vh;
+  }
+
+  @media (max-width: 860px) {
+    .app {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+    }
+  }
+
+  /* ---------- PAINEL LATERAL ---------- */
+  .painel {
+    background: var(--asfalto);
+    color: var(--concreto);
+    padding: 28px 28px 20px;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    border-right: 6px solid var(--sinalizacao);
+  }
+
+  .painel-topo {
+    margin-bottom: 22px;
+  }
+
+  .selo {
+    display: inline-block;
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--sinalizacao);
+    border: 1px solid var(--sinalizacao);
+    padding: 3px 8px;
+    border-radius: 2px;
+    margin-bottom: 14px;
+  }
+
+  h1 {
+    font-size: 26px;
+    line-height: 1.15;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+
+  .subtitulo {
+    font-size: 14px;
+    color: #b9b6ad;
+    margin-top: 10px;
+    line-height: 1.5;
+  }
+
+  .stat-row {
+    display: flex;
+    gap: 14px;
+    margin: 22px 0 24px;
+  }
+
+  .stat {
+    flex: 1;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 4px;
+    padding: 12px 10px;
+  }
+
+  .stat-num {
+    font-size: 26px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stat-label {
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #9a968c;
+    margin-top: 2px;
+  }
+
+  .filtros {
+    margin-bottom: 18px;
+  }
+
+  .filtros-titulo {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #9a968c;
+    margin-bottom: 10px;
+  }
+
+  .chip-grupo {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .chip {
+    font-size: 12.5px;
+    padding: 6px 11px;
+    border-radius: 100px;
+    border: 1px solid rgba(255,255,255,0.18);
+    background: transparent;
+    color: var(--concreto);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .chip:hover {
+    border-color: var(--sinalizacao);
+  }
+
+  .chip.ativo {
+    background: var(--sinalizacao);
+    border-color: var(--sinalizacao);
+    color: #fff;
+  }
+
+  .lista-titulo {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: #9a968c;
+    margin: 6px 0 10px;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .lista {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding-bottom: 10px;
+  }
+
+  .item {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.09);
+    border-left: 3px solid var(--seguro);
+    border-radius: 3px;
+    padding: 12px 14px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+  }
+
+  .item:hover {
+    background: rgba(255,255,255,0.09);
+  }
+
+  .item.urgencia-alta { border-left-color: var(--sinalizacao); }
+  .item.urgencia-media { border-left-color: var(--aviso); }
+
+  .item-topo {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 5px;
+  }
+
+  .item-categoria {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--sinalizacao);
+    font-weight: 700;
+  }
+
+  .item-urgencia {
+    font-size: 10.5px;
+    color: #9a968c;
+    white-space: nowrap;
+  }
+
+  .item-descricao {
+    font-size: 13.5px;
+    line-height: 1.4;
+    color: #e3e0d8;
+  }
+
+  .item-endereco {
+    font-size: 11.5px;
+    color: #8f8b81;
+    margin-top: 6px;
+  }
+
+  .vazio {
+    font-size: 13px;
+    color: #8f8b81;
+    padding: 30px 4px;
+    text-align: center;
+    line-height: 1.6;
+  }
+
+  .rodape-painel {
+    font-size: 11px;
+    color: #6f6c64;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255,255,255,0.08);
+    margin-top: 14px;
+  }
+
+  /* ---------- MAPA ---------- */
+  #mapa {
+    height: 100%;
+    width: 100%;
+    background: var(--linha);
+  }
+
+  .leaflet-popup-content-wrapper {
+    border-radius: 4px;
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+  }
+
+  .popup-categoria {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--sinalizacao);
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+
+  .popup-descricao {
+    font-size: 13px;
+    line-height: 1.4;
+    margin-bottom: 6px;
+  }
+
+  .popup-meta {
+    font-size: 11.5px;
+    color: var(--texto-claro);
+  }
+
+  /* Marcador customizado */
+  .marcador-pin {
+    width: 26px;
+    height: 26px;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    border: 2px solid #fff;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  }
+
+  .carregando {
+    position: absolute;
+    inset: 0;
+    background: var(--concreto);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    color: var(--texto-claro);
+    z-index: 1000;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <aside class="painel">
+    <div class="painel-topo">
+      <span class="selo">Relatório Cívico — Londrina</span>
+      <h1>Mapa de Problemas Urbanos</h1>
+      <p class="subtitulo">Reportes enviados pelos próprios moradores. Cada ponto no mapa é uma ocorrência real, com endereço e categoria.</p>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-num" id="stat-total">—</div>
+        <div class="stat-label">Reportes</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" id="stat-urgentes">—</div>
+        <div class="stat-label">Urgência alta</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num" id="stat-categorias">—</div>
+        <div class="stat-label">Categorias</div>
+      </div>
+    </div>
+
+    <div class="filtros">
+      <div class="filtros-titulo">Filtrar por categoria</div>
+      <div class="chip-grupo" id="chips-categoria"></div>
+    </div>
+
+    <div class="lista-titulo">
+      <span>Ocorrências</span>
+      <span id="lista-contagem"></span>
+    </div>
+    <div class="lista" id="lista-ocorrencias">
+      <div class="vazio">Carregando dados...</div>
+    </div>
+
+    <div class="rodape-painel">
+      Dados coletados via formulário público. Atualizado automaticamente a cada nova resposta.
+    </div>
+  </aside>
+
+  <main style="position: relative;">
+    <div id="mapa"></div>
+    <div class="carregando" id="tela-carregando">Carregando ocorrências...</div>
+  </main>
+
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  // =========================================================
+  // CONFIGURAÇÃO — troque esta URL pela URL /exec final do
+  // seu Apps Script quando ela estiver definitiva.
+  // =========================================================
+  const URL_DADOS = 'COLE_AQUI_A_URL_DO_APPS_SCRIPT_TERMINADA_EM_EXEC';
+
+  // Coordenadas centrais de Londrina, PR
+  const CENTRO_LONDRINA = [-23.3103, -51.1628];
+
+  const CORES_CATEGORIA = {
+    'Buraco na via': '#e8542c',
+    'Iluminação pública': '#f0b429',
+    'Lixo / Entulho': '#2f7a4f',
+    'Calçada': '#3b6ea5',
+    'Sinalização': '#8c4fb3',
+    'Outros': '#6b6760'
+  };
+  const COR_PADRAO = '#1c1d1f';
+
+  let mapa, marcadores = [];
+  let dadosCompletos = [];
+  let categoriaAtiva = null;
+
+  function iniciarMapa() {
+    mapa = L.map('mapa', { zoomControl: true }).setView(CENTRO_LONDRINA, 13);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '&copy; OpenStreetMap',
+      maxZoom: 19
+    }).addTo(mapa);
+  }
+
+  function corDaCategoria(categoria) {
+    return CORES_CATEGORIA[categoria] || COR_PADRAO;
+  }
+
+  function criarIconePin(cor) {
+    return L.divIcon({
+      className: '',
+      html: `<div class="marcador-pin" style="background:${cor};"></div>`,
+      iconSize: [26, 26],
+      iconAnchor: [13, 26],
+      popupAnchor: [0, -26]
+    });
+  }
+
+  function nivelUrgencia(valor) {
+    const n = Number(valor);
+    if (n >= 4) return { classe: 'urgencia-alta', label: 'Urgência alta' };
+    if (n === 3) return { classe: 'urgencia-media', label: 'Urgência média' };
+    return { classe: '', label: 'Urgência baixa' };
+  }
+
+  function desenharMarcadores(lista) {
+    marcadores.forEach(m => mapa.removeLayer(m));
+    marcadores = [];
+
+    lista.forEach(ponto => {
+      const cor = corDaCategoria(ponto.categoria);
+      const marcador = L.marker([ponto.lat, ponto.lng], {
+        icon: criarIconePin(cor)
+      });
+
+      marcador.bindPopup(`
+        <div class="popup-categoria">${ponto.categoria || 'Sem categoria'}</div>
+        <div class="popup-descricao">${ponto.descricao || ''}</div>
+        <div class="popup-meta">${ponto.endereco || ''}</div>
+      `);
+
+      marcador.addTo(mapa);
+      marcadores.push(marcador);
+    });
+  }
+
+  function montarListaLateral(lista) {
+    const container = document.getElementById('lista-ocorrencias');
+    const contagem = document.getElementById('lista-contagem');
+    contagem.textContent = lista.length + (lista.length === 1 ? ' item' : ' itens');
+
+    if (lista.length === 0) {
+      container.innerHTML = '<div class="vazio">Nenhuma ocorrência encontrada para este filtro.</div>';
+      return;
+    }
+
+    container.innerHTML = lista.map((ponto, i) => {
+      const urgencia = nivelUrgencia(ponto.urgencia);
+      return `
+        <div class="item ${urgencia.classe}" data-index="${i}">
+          <div class="item-topo">
+            <span class="item-categoria">${ponto.categoria || 'Sem categoria'}</span>
+            <span class="item-urgencia">${urgencia.label}</span>
+          </div>
+          <div class="item-descricao">${ponto.descricao || ''}</div>
+          <div class="item-endereco">${ponto.endereco || ''}</div>
+        </div>
+      `;
+    }).join('');
+
+    container.querySelectorAll('.item').forEach(el => {
+      el.addEventListener('click', () => {
+        const i = Number(el.dataset.index);
+        const ponto = lista[i];
+        mapa.setView([ponto.lat, ponto.lng], 16, { animate: true });
+        const marcador = marcadores[i];
+        if (marcador) marcador.openPopup();
+      });
+    });
+  }
+
+  function montarChipsCategoria(dados) {
+    const categorias = [...new Set(dados.map(p => p.categoria).filter(Boolean))];
+    const container = document.getElementById('chips-categoria');
+
+    const chipTodos = document.createElement('button');
+    chipTodos.className = 'chip ativo';
+    chipTodos.textContent = 'Todas';
+    chipTodos.addEventListener('click', () => aplicarFiltro(null));
+    container.appendChild(chipTodos);
+
+    categorias.forEach(categoria => {
+      const chip = document.createElement('button');
+      chip.className = 'chip';
+      chip.textContent = categoria;
+      chip.addEventListener('click', () => aplicarFiltro(categoria));
+      container.appendChild(chip);
+    });
+  }
+
+  function aplicarFiltro(categoria) {
+    categoriaAtiva = categoria;
+
+    document.querySelectorAll('#chips-categoria .chip').forEach(chip => {
+      const ehTodos = chip.textContent === 'Todas';
+      chip.classList.toggle('ativo', categoria === null ? ehTodos : chip.textContent === categoria);
+    });
+
+    const filtrados = categoria
+      ? dadosCompletos.filter(p => p.categoria === categoria)
+      : dadosCompletos;
+
+    desenharMarcadores(filtrados);
+    montarListaLateral(filtrados);
+  }
+
+  function atualizarEstatisticas(dados) {
+    document.getElementById('stat-total').textContent = dados.length;
+    const urgentes = dados.filter(p => Number(p.urgencia) >= 4).length;
+    document.getElementById('stat-urgentes').textContent = urgentes;
+    const categorias = new Set(dados.map(p => p.categoria).filter(Boolean));
+    document.getElementById('stat-categorias').textContent = categorias.size;
+  }
+
+  async function carregarDados() {
+    try {
+      const resposta = await fetch(URL_DADOS);
+      const dados = await resposta.json();
+
+      dadosCompletos = dados.filter(p => p.lat && p.lng);
+
+      montarChipsCategoria(dadosCompletos);
+      desenharMarcadores(dadosCompletos);
+      montarListaLateral(dadosCompletos);
+      atualizarEstatisticas(dadosCompletos);
+
+      document.getElementById('tela-carregando').style.display = 'none';
+    } catch (erro) {
+      document.getElementById('tela-carregando').textContent =
+        'Não foi possível carregar os dados. Verifique a URL configurada no script.';
+      console.error(erro);
+    }
+  }
+
+  iniciarMapa();
+  carregarDados();
+</script>
+
+</body>
+</html>
